@@ -2,61 +2,73 @@
 
 import numpy as np
 from PIL import Image, ImageOps 
-from lines import bresenham_line
+from lines import *
 
-def parseObj(filename): # Передаем в парсер, имя файла
+def parseObj(filename):
     vertices = [] # Массив под все вершины по порядку. len = число вершин
     faces = [] # Массив под номера вершин, образующих полигоны, грани. len = число вершин
     polygonsDotAmount = [] # Число вершин в каждом полигоне. len = число полигонов
-    with open(filename, 'r') as file: # Открываем файл в режиме чтение ('r')
-        for line in file: # Для каждой строки в файле проверяем
-            if (line.startswith('v ')): # Если она начинается на 'v ' то это вершина
-                dot = line.strip('\n').split(' ')[1:] # Отбрасываем \n в концестроки и 'v', читая все 1го символа ([1:]). удаляем все пробелы указывая их как разделители(split(' '))
-                cords = list(map(float, dot)) # обьект map приводим к list с точками x, y, z типа float
-                vertices.append((cords[0], cords[1])) # по заданию нам нужны только х и y
-            elif line.startswith('f '): # Если строка начинается с f, то это полигон
-                parts = line.strip('\n').split(' ')[1:] # Удаляем прбелы, \n и f аналогичным образом. Массив с частями полигона (образующими точками, их свойствами - шейдерами и т.п.)
-                dotAmount = len(parts) # Запоминаем кол-во точек, образующих полигон
-                polygonsDotAmount.append(dotAmount) # Сохраняем dotAmount`ы. Получим массив, в котором индекс + 1 - номер полигона, а значение на этом индексе - кол-во точек образующих полигон
-                for line in parts: # В итоге имеем массив parts: ['7/2/3', '1/3/2', ...] - тройки цифр (опциально, может быть так: '1//3', ... или так '1//', ..., тогда в строке ниже нужно будет поменять .split('/') на .split('//') или с 3 слэшами), в которых первая цифра - номер вершины образующей полигон в массиве vertices по порядку, нумеруя с 0
-                    part = list(map(int, line.split('/'))) # Каждую строку вида 7/2/3 делим на числа удаляя слэшы.
-                    faces.append(part[0]) # Получим part = ['7', '2', '3'], нам нужна только 1 цифра - номер вершины. Повторяем для каждой строки данного полигона
+    with open(filename, 'r') as file:
+        for line in file:
+            if (line.startswith('v ')):
+                dot = line.strip('\n').split(' ')[1:]
+                cords = list(map(float, dot))
+                vertices.append((cords[0], cords[1]))
+            elif line.startswith('f '):
+                parts = line.strip('\n').split(' ')[1:]
+                dotAmount = len(parts)
+                polygonsDotAmount.append(dotAmount)
+                for line in parts:
+                    part = list(map(int, line.split('//')))
+                    faces.append(part[0])
     return vertices, faces, polygonsDotAmount
 
-def drawObject(filename, width, height, size, x_offset, y_offset):
-    vertices, faces, polygonsDotAmount = parseObj(filename) # При помощи парсера, инициализируем необходимые массивы
-    color = (0, 0, 255) # Выбираем синий цвет
-
-    image = np.full((height, width, 3), 255, dtype=np.uint8) # Создаем матрицу
-
+def drawObject(image, color, faces, polygonsDotAmount, pixelVertices):
     # ОТРИСОВКА ТОЧЕК
-    pixelVertices = [] # Массив точек отмасштабированной картинки
-    for vertice in vertices:
-        x, y = vertice[0]*size + x_offset, vertice[1]*size + y_offset# Масштабируем и смещаем изображение. Если не масштабировать точки с маленькими занчениямия по типу (0.0033, 0.0055) и (0.0011, 0.0066) будут считаться одинаковыми при округлении
-        pixelVertices.append((x, y)) # Добавляем отмасштабированные вершины
-        image[int(y), int(x)] = color # Закрашиваем их
+    for pixel in pixelVertices:
+        image[int(pixel[1]), int(pixel[0])] = color
 
-    # ВАЖНО. До этого ребра отрисовывались попарно, двойным циклом for. Это неправильно, т.к. тогда мы соединяем все ребра друг с другом, а нам нужно образовать только треугольники. Соеденяя все ребра, например, пятиугольного полгона, мы получим что то похожее на звезду, а должны получить 3 треугольника и не более. Из за этого в некоторых моделях можно было увидеть лишние ребра
     # ОТРИСОВКА РЕБЕР
     usedVertices = 0
-    for dotAmount in polygonsDotAmount: # Берем одно число - кол-во вершин данного полигона
+    for dotAmount in polygonsDotAmount:
         for i in range(1, dotAmount - 1):
-            # Полигон отрисовываем по треуольникам, т.е. по 3 вершинам, опроной - нулевой вершине ДАННОГО полигона и соеденяем нулевую по очереде с остальными, т.е. 0-1-2-0, 0-2-3-0, 0-3-4-0 и т.д.
-            # Нумерация вершин в строках полигонов фалйа obj (f 1/2/3 2/3/4 3/4/5) начинается с 1, а не с 0, а индексация вершин в массиве pixelVerices с 0, поэтому вычитаем 1
             p0 = pixelVertices[faces[0 + usedVertices]-1]
             p1 = pixelVertices[faces[i + usedVertices]-1]
             p2 = pixelVertices[faces[i + 1 + usedVertices]-1]
-            bresenham_line(image, p0[0], p0[1], p1[0], p1[1], color) # Отрисовываем ребро 0-1
-            bresenham_line(image, p1[0], p1[1], p2[0], p2[1], color) # 1-2
-            bresenham_line(image, p2[0], p2[1], p0[0], p0[1], color) # 2-0. А дальше продолжаем 0-2, 2-3, 3-0 и т.д.
-        usedVertices += dotAmount # Чтобы не удалять вершины из массива, используя постоянно первые несколько нужных вершин. Будем двигать индекс на число использовнных вершин, т.е. число вершин полигона.
+            bresenham_line(image, p0[0], p0[1], p1[0], p1[1], color)
+            bresenham_line(image, p1[0], p1[1], p2[0], p2[1], color)
+            bresenham_line(image, p2[0], p2[1], p0[0], p0[1], color)
+        usedVertices += dotAmount
     return image
 
 def main():
-    objFilename = "Chess.obj" # ЗДЕСЬ НАДО УКАЗАТЬ ФАЙЛ obj ДЛЯ РЕНДЕРА
-    width = 4000 # Настройка разрешения изображения
-    height = 4000
-    resultImage = drawObject(objFilename, width, height, size=190, x_offset=width//2, y_offset=0) # size нужно регулировать в зависимости от картинки, иногда его нужно делать очень маленьким, иногда большим, иначе будет выход за границы изображения размером Width на height пикселей. Чтобы центрировать картинку, смещение нужно брать  x_offset=width//2 и y_offset=height//2
+    objFilename = "PlatonicSolids.obj"
+    width = 1280 # Задаем разрешение
+    height = 720
+    image = np.full((height, width, 3), 255, dtype=np.uint8) # Создаем массив под изображение
+    color = (0, 0, 255) # Выбираем цвет
+
+    vertices, faces, polygonsDotAmount = parseObj(objFilename)
+
+    # Задаем сдвиг и размер для масштабирования
+    x_offset= width//2
+    y_offset= 0
+    size= 30
+    pixelVertices = [] # Массив точек отмасштабированной картинки
+    for vertice in vertices:
+        x, y = vertice[0]*size + x_offset, vertice[1]*size + y_offset # Масштабируем и смещаем изображение. Если не масштабировать точки с маленькими занчениямия по типу (0.0033, 0.0055) и (0.0011, 0.0066) будут считаться одинаковыми при округлении
+        pixelVertices.append((x, y))
+
+    resultImage = drawObject(image=image, color=color, faces=faces, polygonsDotAmount=polygonsDotAmount, pixelVertices=pixelVertices)
+
+    # Берем первые три вершины треугольника для отрисовки
+    x0 = pixelVertices[faces[0] - 1][0]
+    y0 = pixelVertices[faces[0] - 1][1]
+    x1 = pixelVertices[faces[1] - 1][0]
+    y1 = pixelVertices[faces[1] - 1][1]
+    x2 = pixelVertices[faces[2] - 1][0]
+    y2 = pixelVertices[faces[2] - 1][1]
+    draw_triangle(x0, y0, x1, y1, x2, y2, width=width, height=height, image=image, color=color)
 
     image = Image.fromarray(resultImage)
     image = ImageOps.flip(image)
