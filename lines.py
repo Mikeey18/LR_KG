@@ -39,7 +39,7 @@ def barycentric_coordinates(x0, y0, x1, y1, x2, y2, x, y): # Вычисляем 
     lambda2 = 1.0 - lambda0 - lambda1
     return lambda0, lambda1, lambda2
 
-def draw_triangle(x0, y0, x1, y1, x2, y2, image, width, height, color):
+def draw_triangle(x0, y0, z0, x1, y1, z1, x2, y2, z2, width, height, image, color, z_buffer):
     xmin = max(min(x0, x1, x2), 0)
     xmax = min(max(x0, x1, x2), width - 1)
     ymin = max(min(y0, y1, y2), 0)
@@ -48,4 +48,11 @@ def draw_triangle(x0, y0, x1, y1, x2, y2, image, width, height, color):
     for x in range(int(xmin), int(xmax) + 1):
         for y in range(int(ymin), int(ymax) + 1):
             lambda0, lambda1, lambda2 = barycentric_coordinates(x0, y0, x1, y1, x2, y2, x, y)
-            if (lambda0 >= 0 and lambda1 >= 0 and lambda2 >= 0): image[int(x), int(y)] = color
+            z = lambda0*z0 + lambda1*z1 + lambda2*z2 # z координата текущего пикселя на трехмерном треугольнике (в трехмерном пространстве)
+            if (lambda0 >= 0 and lambda1 >= 0 and lambda2 >= 0):
+                if (z < z_buffer[int(x), int(y)]):
+                    image[int(x), int(y)] = color
+                    z_buffer[int(x), int(y)] = z
+
+def normal(x0, y0, z0, x1, y1, z1, x2, y2, z2):
+    return ((y1-y2)*(z1-z0) - (y1-y0)*(z1-z2), (x1-x2)*(z1-z2) - (x1-x2)*(z1-z0), (x1-x2)*(y1-y0) - (x1-x0)*(y1-y2)) # Находим нормаль к плоскости, соедржащей треугольник с точками (x0, y0, z0), (x1, y1, z1), (x2, y2, z2) как векторное произведение двух векторов (A1 - A2) х (A1 - A0), где Ai точка с соответствующими координатами
