@@ -3,6 +3,7 @@
 import numpy as np
 from PIL import Image, ImageOps 
 from lines import *
+import random
 
 def parseObj(filename):
     vertices = [] # Массив под все вершины по порядку. len = число вершин
@@ -23,12 +24,12 @@ def parseObj(filename):
                     faces.append(part[0])
     return vertices, faces, polygonsDotAmount
 
-def drawObject(image, color, faces, polygonsDotAmount, pixelVertices):
+def drawObject(image, width, height, color, faces, polygonsDotAmount, pixelVertices):
     # ОТРИСОВКА ТОЧЕК
     for pixel in pixelVertices:
         image[int(pixel[1]), int(pixel[0])] = color
 
-    # ОТРИСОВКА РЕБЕР
+    # ОТРИСОВКА РЕБЕР И ТРЕУГОЛЬНИКОВ
     usedVertices = 0
     for dotAmount in polygonsDotAmount:
         for i in range(1, dotAmount - 1):
@@ -38,6 +39,9 @@ def drawObject(image, color, faces, polygonsDotAmount, pixelVertices):
             bresenham_line(image, p0[0], p0[1], p1[0], p1[1], color)
             bresenham_line(image, p1[0], p1[1], p2[0], p2[1], color)
             bresenham_line(image, p2[0], p2[1], p0[0], p0[1], color)
+
+            randomColor = (random.randint(0, 255), random.randint(0, 255), random.randint(0, 255))
+            draw_triangle(p0[1], p0[0], p1[1], p1[0], p2[1], p2[0], image=image, width=width, height=height, color=randomColor) # Раскрашиваем треугольники в разные цвета, координаты х и у поменяли местами, т.к. у нас матрица в ней строки - х а столбцы у, а в системе координат наоборот
         usedVertices += dotAmount
     return image
 
@@ -56,19 +60,10 @@ def main():
     size= 30
     pixelVertices = [] # Массив точек отмасштабированной картинки
     for vertice in vertices:
-        x, y = vertice[0]*size + x_offset, vertice[1]*size + y_offset # Масштабируем и смещаем изображение. Если не масштабировать точки с маленькими занчениямия по типу (0.0033, 0.0055) и (0.0011, 0.0066) будут считаться одинаковыми при округлении
+        x, y = vertice[0]*size + x_offset, vertice[1]*size + y_offset
         pixelVertices.append((x, y))
 
-    resultImage = drawObject(image=image, color=color, faces=faces, polygonsDotAmount=polygonsDotAmount, pixelVertices=pixelVertices)
-
-    # Берем первые три вершины треугольника для отрисовки
-    x0 = pixelVertices[faces[0] - 1][0]
-    y0 = pixelVertices[faces[0] - 1][1]
-    x1 = pixelVertices[faces[1] - 1][0]
-    y1 = pixelVertices[faces[1] - 1][1]
-    x2 = pixelVertices[faces[2] - 1][0]
-    y2 = pixelVertices[faces[2] - 1][1]
-    draw_triangle(x0, y0, x1, y1, x2, y2, width=width, height=height, image=image, color=color)
+    resultImage = drawObject(image=image, width=width, height=height, color=color, faces=faces, polygonsDotAmount=polygonsDotAmount, pixelVertices=pixelVertices)
 
     image = Image.fromarray(resultImage)
     image = ImageOps.flip(image)
